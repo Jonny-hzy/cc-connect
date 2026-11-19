@@ -695,6 +695,7 @@ const (
 	// send / cron / timer / relay tool documentation in their native
 	// language. Translation coverage is en + zh for this PR; additional
 	// languages fall back to en automatically.
+	MsgAgentPromptHeader    MsgKey = "agent_prompt_header"
 	MsgAgentSendToolPrompt  MsgKey = "agent_send_tool_prompt"
 	MsgAgentCronToolPrompt  MsgKey = "agent_cron_tool_prompt"
 	MsgAgentTimerToolPrompt MsgKey = "agent_timer_tool_prompt"
@@ -4307,6 +4308,10 @@ var messages = map[MsgKey]map[Language]string{
 		LangTraditionalChinese: "`/workspace init` 未啟用本機目錄目標。請使用 git 倉庫地址，或在此專案配置 `workspace_init_allow_local_paths = true`。",
 		LangJapanese:           "`/workspace init` ではローカルディレクトリ対象が無効です。git URL を使うか、このプロジェクトで `workspace_init_allow_local_paths = true` を有効にしてください。",
 		LangSpanish:            "Los destinos de directorio local están deshabilitados para `/workspace init`. Use una URL de git o habilite `workspace_init_allow_local_paths = true` para este proyecto.",
+	},
+	MsgAgentPromptHeader: {
+		LangEnglish: "You are running inside cc-connect, a bridge that connects you to messaging platforms.\nYour normal text responses are automatically delivered to the user — just reply normally, do NOT use cc-connect send for ordinary text replies.\n\n## Available tools\n",
+		LangChinese: "你正在 cc-connect 中运行，它会把你的回复转发到即时通讯平台。\n你的普通文字回复会自动送达用户——直接正常回复即可，不要用 cc-connect send 发送普通文本。\n\n## Available tools\n",
 	},
 	MsgAgentSendToolPrompt: {
 		LangEnglish: `### Send generated images, files, or voice messages back to the user

@@ -203,7 +203,7 @@ func TestBuildAgentOptionsInjectsProjectScope(t *testing.T) {
 		},
 	}
 
-	got := buildAgentOptions("/tmp/data", proj)
+	got := buildAgentOptions("/tmp/data", proj, "")
 
 	if got["cc_data_dir"] != "/tmp/data" {
 		t.Fatalf("cc_data_dir = %v, want %q", got["cc_data_dir"], "/tmp/data")
@@ -469,5 +469,19 @@ func TestParseRootCLIOptionsHelp(t *testing.T) {
 func TestRunTopLevelCommandUnknown(t *testing.T) {
 	if runTopLevelCommand([]string{"bind", "--help"}) {
 		t.Fatal("runTopLevelCommand() handled unknown command")
+	}
+}
+
+func TestBuildAgentOptionsInjectsLanguage(t *testing.T) {
+	proj := config.ProjectConfig{Name: "demo", Agent: config.AgentConfig{Type: "claudecode"}}
+	opts := buildAgentOptions("/tmp/data", proj, "zh")
+	if opts["language"] != "zh" {
+		t.Fatalf("opts[language] = %v, want zh", opts["language"])
+	}
+
+	proj.Agent.Options = map[string]any{"language": "en"}
+	opts = buildAgentOptions("/tmp/data", proj, "zh")
+	if opts["language"] != "en" {
+		t.Fatalf("per-project language must win, got %v", opts["language"])
 	}
 }

@@ -147,11 +147,8 @@ func AgentSystemPrompt() string {
 // rather than tool documentation, and keeping it stable across languages
 // preserves the meaning of the marker the engine searches for when refreshing
 // the prompt file across upgrades.
-const agentSystemPromptHeader = `You are running inside cc-connect, a bridge that connects you to messaging platforms.
-Your normal text responses are automatically delivered to the user — just reply normally, do NOT use cc-connect send for ordinary text replies.
-
-## Available tools
-`
+// The header is localized via MsgAgentPromptHeader so the injected prompt
+// matches the operator's configured language.
 
 // agentSystemPromptFooter is the static English closing section (silent reply
 // / NO_REPLY semantics). Like the header, it is shared infrastructure rather
@@ -195,7 +192,7 @@ Use this sparingly; when in doubt, send a brief reply instead.
 // scope: zh + en translations on these four tools; other languages come
 // later as follow-up PRs.
 func AgentSystemPromptForLang(lang Language) string {
-	return agentSystemPromptHeader +
+	return i18nT(lang, MsgAgentPromptHeader) +
 		i18nT(lang, MsgAgentSendToolPrompt) +
 		"\n\n" + i18nT(lang, MsgAgentCronToolPrompt) +
 		"\n\n" + i18nT(lang, MsgAgentTimerToolPrompt) +

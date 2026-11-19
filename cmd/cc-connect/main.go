@@ -372,7 +372,7 @@ func main() {
 				proj.Agent.Options["run_as_env"] = proj.RunAsEnv
 			}
 		}
-		agent, err := core.CreateAgent(proj.Agent.Type, buildAgentOptions(cfg.DataDir, proj))
+		agent, err := core.CreateAgent(proj.Agent.Type, buildAgentOptions(cfg.DataDir, proj, cfg.Language))
 		if err != nil {
 			slog.Error("failed to create agent", "project", proj.Name, "error", err)
 			os.Exit(1)
@@ -2014,13 +2014,18 @@ func convertProviderModels(ms []config.ProviderModelConfig) []core.ModelOption {
 	return opts
 }
 
-func buildAgentOptions(dataDir string, proj config.ProjectConfig) map[string]any {
-	opts := make(map[string]any, len(proj.Agent.Options)+2)
+func buildAgentOptions(dataDir string, proj config.ProjectConfig, globalLang string) map[string]any {
+	opts := make(map[string]any, len(proj.Agent.Options)+3)
 	for k, v := range proj.Agent.Options {
 		opts[k] = v
 	}
 	opts["cc_data_dir"] = dataDir
 	opts["cc_project"] = proj.Name
+	// Agents that localize their injected system prompt read opts["language"]
+	// (e.g. claudecode). A per-project agent option wins over the global one.
+	if _, ok := opts["language"]; !ok && globalLang != "" {
+		opts["language"] = globalLang
+	}
 	return opts
 }
 
