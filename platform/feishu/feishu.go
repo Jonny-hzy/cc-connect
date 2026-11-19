@@ -136,18 +136,22 @@ type replyContext struct {
 }
 
 type Platform struct {
-	mu                         sync.RWMutex
-	platformName               string
-	domain                     string
-	appID                      string
-	appSecret                  string
-	progressStyle              string
-	useInteractiveCard         bool
-	streamingConfig            map[string]any
-	self                       core.Platform
-	reactionEmoji              string
-	ackEmoji                   string
-	doneEmoji                  string
+	mu                 sync.RWMutex
+	platformName       string
+	domain             string
+	appID              string
+	appSecret          string
+	progressStyle      string
+	useInteractiveCard bool
+	streamingConfig    map[string]any
+	self               core.Platform
+	reactionEmoji      string
+	ackEmoji           string
+	doneEmoji          string
+	// lastOutbox maps a chat id to the newest message this bot sent there, so
+	// the agent can recall its own last reply (cc-connect recall --last).
+	lastOutboxMu               sync.Mutex
+	lastOutbox                 map[string]string
 	allowFrom                  string
 	allowChat                  string
 	groupOnly                  bool
@@ -4649,6 +4653,9 @@ func (p *Platform) replyMessage(ctx context.Context, rc replyContext, msgType, c
 			if !resp.Success() {
 				return fmt.Errorf("%s: reply failed code=%d msg=%s", p.tag(), resp.Code, resp.Msg)
 			}
+			if resp.Data != nil && resp.Data.MessageId != nil {
+				p.recordOutbound(rc.chatID, *resp.Data.MessageId)
+			}
 			return nil
 		})
 	})
@@ -4685,6 +4692,9 @@ func (p *Platform) createMessage(ctx context.Context, chatID, receiveIDType, msg
 			}
 			if !resp.Success() {
 				return fmt.Errorf("%s: %s failed code=%d msg=%s", p.tag(), op, resp.Code, resp.Msg)
+			}
+			if resp.Data != nil && resp.Data.MessageId != nil {
+				p.recordOutbound(chatID, *resp.Data.MessageId)
 			}
 			return nil
 		})
@@ -6067,6 +6077,73 @@ func (p *Platform) Stop() error {
 	p.flushInboundCoalesced()
 	return nil
 }
+
+// recordOutbound remembers the newest message this bot sent in a chat.
+func (p *Platform) recordOutbound(chatID, messageID string) {
+	if chatID == "" || messageID == "" {
+		return
+	}
+	p.lastOutboxMu.Lock()
+	if p.lastOutbox == nil {
+		p.lastOutbox = make(map[string]string)
+	}
+	p.lastOutbox[chatID] = messageID
+	p.lastOutboxMu.Unlock()
+}
+
+// takeOutbound returns and forgets the newest outbound message for a chat.
+func (p *Platform) takeOutbound(chatID string) string {
+	p.lastOutboxMu.Lock()
+	defer p.lastOutboxMu.Unlock()
+	id := p.lastOutbox[chatID]
+	delete(p.lastOutbox, chatID)
+	return id
+}
+
+// RecallLastMessage deletes the newest message this bot sent in the chat of the
+// given reply context, returning its message id. Implements
+// core.OutboundMessageRecaller.
+func (p *Platform) RecallLastMessage(ctx context.Context, rctx any) (string, error) {
+	rc, ok := rctx.(replyContext)
+	if !ok || rc.chatID == "" {
+		return "", fmt.Errorf("%s: invalid reply context for recall", p.tag())
+	}
+	messageID := p.takeOutbound(rc.chatID)
+	if messageID == "" {
+		return "", fmt.Errorf("%s: no recent outbound message to recall", p.tag())
+	}
+
+	req := larkim.NewDeleteMessageReqBuilder().
+		MessageId(messageID).
+		Build()
+	err := p.withTransientRetry(ctx, "recall message", func() error {
+		return p.withFreshTenantAccessTokenRetry(ctx, "recall message", func(client *lark.Client, options ...larkcore.RequestOptionFunc) error {
+			resp, err := client.Im.Message.Delete(ctx, req, options...)
+			if err != nil {
+				return fmt.Errorf("%s: recall message api call: %w", p.tag(), err)
+			}
+			if !resp.Success() {
+				return fmt.Errorf("%s: recall message failed code=%d msg=%s", p.tag(), resp.Code, resp.Msg)
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		// Keep the id so a later recall can retry, but never clobber a newer one.
+		p.lastOutboxMu.Lock()
+		if p.lastOutbox == nil {
+			p.lastOutbox = make(map[string]string)
+		}
+		if _, exists := p.lastOutbox[rc.chatID]; !exists {
+			p.lastOutbox[rc.chatID] = messageID
+		}
+		p.lastOutboxMu.Unlock()
+		return "", err
+	}
+	return messageID, nil
+}
+
+var _ core.OutboundMessageRecaller = (*Platform)(nil)
 
 // DeletePreviewMessage removes a preview message so the caller can send a
 // separate final message without leaving a stale interactive card behind.

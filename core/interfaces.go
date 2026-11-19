@@ -90,6 +90,14 @@ type MessageRecallDetector interface {
 	IsMessageRecalled(ctx context.Context, replyCtx any) (bool, error)
 }
 
+// OutboundMessageRecaller is an optional interface for platforms that can
+// recall (delete) the newest message the bot itself sent in the conversation
+// identified by replyCtx. It returns the recalled platform message id.
+// Implementations must only ever delete messages this bot sent.
+type OutboundMessageRecaller interface {
+	RecallLastMessage(ctx context.Context, replyCtx any) (string, error)
+}
+
 // CronReplyTargetResolver is an optional interface for platforms that need to
 // map a logical cron session key to the actual reply target used at execution
 // time. This is useful for platforms where proactive replies may need to create

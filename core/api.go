@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -90,6 +91,7 @@ func NewAPIServer(dataDir string) (*APIServer, error) {
 		maxAttachmentBytes: DefaultMaxAttachmentSize,
 	}
 	s.mux.HandleFunc("/send", s.handleSend)
+	s.mux.HandleFunc("/recall", s.handleRecall)
 	s.mux.HandleFunc("/sessions", s.handleSessions)
 	s.mux.HandleFunc("/cron/add", s.handleCronAdd)
 	s.mux.HandleFunc("/cron/list", s.handleCronList)
@@ -281,6 +283,59 @@ func (s *APIServer) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apiJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// RecallRequest is the JSON body for POST /recall.
+type RecallRequest struct {
+	Project    string `json:"project"`
+	SessionKey string `json:"session_key"`
+}
+
+// handleRecall deletes the newest message the bot sent in the given session.
+// Used by `cc-connect recall --last`.
+func (s *APIServer) handleRecall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	var req RecallRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	s.mu.RLock()
+	var engine *Engine
+	var ok bool
+	if req.Project != "" {
+		engine, ok = s.engines[req.Project]
+	} else if len(s.engines) == 1 {
+		for _, e := range s.engines {
+			engine, ok = e, true
+		}
+	}
+	s.mu.RUnlock()
+	if !ok {
+		if req.Project == "" {
+			http.Error(w, "project is required (multiple projects configured)", http.StatusBadRequest)
+			return
+		}
+		http.Error(w, fmt.Sprintf("project %q not found", req.Project), http.StatusNotFound)
+		return
+	}
+	if strings.TrimSpace(req.SessionKey) == "" {
+		http.Error(w, "session_key is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	messageID, err := engine.RecallLastMessage(ctx, req.SessionKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	apiJSON(w, http.StatusOK, map[string]string{"status": "ok", "message_id": messageID})
 }
 
 func (s *APIServer) handleSessions(w http.ResponseWriter, r *http.Request) {

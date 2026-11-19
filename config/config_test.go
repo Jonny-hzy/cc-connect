@@ -3726,3 +3726,33 @@ func TestRemoveGlobalProvider_CleansUpProviderRefs(t *testing.T) {
 		t.Errorf("proj2 provider_refs: want [], got %v", refs2)
 	}
 }
+
+const projectWithAllowAgentRecallFixture = `
+[[projects]]
+name = "beta"
+allow_agent_recall = true
+
+[projects.agent]
+type = "codex"
+
+[projects.agent.options]
+work_dir = "/tmp/beta"
+
+[[projects.platforms]]
+type = "telegram"
+
+[projects.platforms.options]
+bot_token = "token_xxx"
+`
+
+func TestLoad_ParsesAllowAgentRecall(t *testing.T) {
+	configPath := writeConfigFixture(t, projectWithAllowAgentRecallFixture)
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Projects[0].AllowAgentRecall == nil || !*cfg.Projects[0].AllowAgentRecall {
+		t.Fatal("allow_agent_recall = true was not parsed")
+	}
+}

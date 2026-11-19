@@ -215,6 +215,7 @@ var topLevelCommandHandlers = map[string]func([]string){
 	},
 	"provider":  runProviderCommand,
 	"send":      runSend,
+	"recall":    runRecall,
 	"cron":      runCron,
 	"timer":     runTimer,
 	"at":        runTimer,
@@ -742,6 +743,7 @@ func main() {
 
 		// Wire mid-turn steering for busy sessions
 		engine.SetSteerWhileBusy(proj.SteerWhileBusy != nil && *proj.SteerWhileBusy)
+		engine.SetAllowAgentRecall(proj.AllowAgentRecall != nil && *proj.AllowAgentRecall)
 
 		// Wire speech-to-text if enabled
 		if cfg.Speech.Enabled {
@@ -1900,6 +1902,7 @@ func reloadConfig(configPath, projName string, engine *core.Engine) (*core.Confi
 	// Reload sender injection
 	engine.SetInjectSender(proj.InjectSender != nil && *proj.InjectSender)
 	engine.SetSteerWhileBusy(proj.SteerWhileBusy != nil && *proj.SteerWhileBusy)
+	engine.SetAllowAgentRecall(proj.AllowAgentRecall != nil && *proj.AllowAgentRecall)
 
 	// Reload attachment send-back switch
 	engine.SetAttachmentSendEnabled(cfg.AttachmentSend != "off")

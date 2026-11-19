@@ -523,6 +523,10 @@ type ProjectConfig struct {
 	// queued. Only honored for agents implementing core.MidTurnSteerer.
 	// Default false.
 	SteerWhileBusy *bool `toml:"steer_while_busy,omitempty"`
+	// AllowAgentRecall lets the agent recall (delete) its own most recent
+	// message in this session, e.g. when it discovers an error and wants to
+	// replace it with a correction. Default false.
+	AllowAgentRecall *bool `toml:"allow_agent_recall,omitempty"`
 	// AgentSessionIdleTimeoutMins 在指定分钟数后关闭空闲的 live agent 进程，
 	// 同时保留已保存的 session ID，便于下一条消息继续恢复。0 或 nil 表示禁用。
 	AgentSessionIdleTimeoutMins *int `toml:"agent_session_idle_timeout_mins,omitempty"`

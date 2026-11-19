@@ -427,6 +427,7 @@ type Engine struct {
 	agentSessionIdleSeq          atomic.Uint64
 	maxQueuedMessages            int
 	steerWhileBusy               bool
+	allowAgentRecall             bool
 	dirHistory                   *DirHistory
 	baseWorkDir                  string
 	projectState                 *ProjectStateStore
@@ -1484,6 +1485,27 @@ func (e *Engine) SetMaxQueuedMessages(n int) {
 // SetSteerWhileBusy enables folding messages into an in-flight turn for this
 // engine. Callers resolve nil to false.
 func (e *Engine) SetSteerWhileBusy(v bool) { e.steerWhileBusy = v }
+
+// SetAllowAgentRecall enables agent-initiated recall of its own last message.
+func (e *Engine) SetAllowAgentRecall(v bool) { e.allowAgentRecall = v }
+
+// RecallLastMessage deletes the newest message this session's bot sent, when the
+// project allows agent-initiated recall and the platform supports it. It returns
+// the recalled platform message id.
+func (e *Engine) RecallLastMessage(ctx context.Context, sessionKey string) (string, error) {
+	if !e.allowAgentRecall {
+		return "", fmt.Errorf("agent recall is disabled for this project")
+	}
+	_, p, replyCtx, err := e.resolveOutboundSessionTarget(sessionKey, false)
+	if err != nil {
+		return "", err
+	}
+	recaller, ok := p.(OutboundMessageRecaller)
+	if !ok {
+		return "", fmt.Errorf("platform %s: %w", p.Name(), ErrNotSupported)
+	}
+	return recaller.RecallLastMessage(ctx, replyCtx)
+}
 
 func (e *Engine) SetRelayManager(rm *RelayManager) {
 	e.relayManager = rm
